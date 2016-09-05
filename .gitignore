@@ -1,2 +1,6 @@
+!lena_only_caption.png
+
 *.jpg
 *.png
+*.pyc
+try.py

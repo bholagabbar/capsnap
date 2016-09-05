@@ -1,38 +1,50 @@
 import cv2
 import numpy as np
+from numpy import array, arange, uint8 
 from matplotlib import pyplot as plt
 
 
-def increase_contrast(image):
-	maxIntensity = 255.0 # depends on dtype of image data
-	x = arange(maxIntensity) 
+images = []
 
-	# Parameters for manipulating image data
-	phi = 1
-	theta = 1
+def increase_contrast(image_todo):
+	array_alpha = np.array([1.99])
+	array_beta = np.array([-100.0])
+	cv2.add(image_todo, array_beta, image_todo)
+	cv2.add(image_todo, array_alpha, image_todo)
+	# images.append(image_todo)
+	return image_todo
 
-	# Increase intensity such that
-	# dark pixels become much brighter, 
-	# bright pixels become slightly bright
-	contasted_image = (maxIntensity/phi)*(image/(maxIntensity/theta))**0.5
-	contasted_image = array(contasted_image,dtype=uint8)
+def thresh_and_smoothen(image_todo):
+	ret,mask = cv2.threshold(image_todo, 2, 256, cv2.THRESH_BINARY)
+	# images.append(mask)
+	mask = cv2.GaussianBlur(mask, (3, 3), 50)
+	# images.append(mask)
+	return mask
 
-	cv2.imshow('contasted_image',contasted_image)
-	return contasted_image
+def inpaint_original(image_todo, mask):
+	final = cv2.inpaint(image_todo, mask, 0, cv2.INPAINT_TELEA)
+	images.append(final)
+	return final
 
-img = cv2.imread('only_caption.jpg',0)
-#img = increase_contrast(img)
-ret,thresh1 = cv2.threshold(img,50,255,cv2.THRESH_BINARY)
 
-mask = thresh1
-dst = cv2.inpaint(img,mask,3,cv2.INPAINT_TELEA)
+img = cv2.imread('lena_only_caption.png', cv2.IMREAD_COLOR)
+img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+bw_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+images.append(img)
+# images.append(bw_img)
+
+cont_img = increase_contrast(bw_img.copy())
+mask = thresh_and_smoothen(cont_img.copy())
+final = inpaint_original(img.copy(), mask)
+
+
+# titles = ['Original Image', 'Thresh and Blurred', 'INPAINTED']
+titles = ['Original Image', 'INPAINTED']
  
-titles = ['Original Image','BINARY THRESH','INPAINTED']
-images = [img, thresh1, dst]
- 
-for i in xrange(3):
-    plt.subplot(2,3,i+1),plt.imshow(images[i],'gray')
-    plt.title(titles[i])
+for i in xrange(len(images)):
+    plt.subplot(2, 1,i+1),plt.imshow(images[i],'gray')
+    # plt.title(titles[i])
     plt.xticks([]),plt.yticks([])
 
 plt.show()
