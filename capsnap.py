@@ -39,7 +39,7 @@ def find_black_bar_and_draw_lines_on_black_image(img, gray, ip_try):
 			y1 = int(y0 + 1000*(a))
 			x2 = int(x0 - 1000*(-b))
 			y2 = int(y0 - 1000*(a))
-			cv2.line(ip_try,(x1,y1),(x2,y2),(256,256,256),2)
+			cv2.line(ip_try,(x1,y1),(x2,y2),(256,256,256),3)
 			limits.append(int(y0))
 	limits.sort()
 	return limits
@@ -47,7 +47,7 @@ def find_black_bar_and_draw_lines_on_black_image(img, gray, ip_try):
 #recolor black parts
 def remove_black_bars(img, limits):
 	for i in xrange (limits[0], limits[1]):
-		for j in xrange(720):
+		for j in xrange(width):
 			img[i][j][0] = (img[i][j][0] * 2.52)
 			img[i][j][1] = (img[i][j][1] * 2.52)
 			img[i][j][2] = (img[i][j][2] * 2.42)
@@ -65,8 +65,12 @@ ap.add_argument("-i", "--img", required = True, help = "Path to the image")
 args = vars(ap.parse_args())
 img = cv2.imread(args["img"])
 
+#noise vanished due to resizing?
+img = cv2.resize(img, (640, 1184), interpolation = cv2.INTER_CUBIC)
+cv2.imwrite('example_resize.png', img)
+height, width = img.shape[:2]
+
 # resize
-img = cv2.resize(img, (720, 1184), interpolation = cv2.INTER_CUBIC)
 
 # get full black image
 ret, ip_try = cv2.threshold(img.copy(), 255, 256, cv2.THRESH_BINARY)
@@ -79,7 +83,7 @@ bw_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 limits = find_black_bar_and_draw_lines_on_black_image(img, bw_img, ip_try)
 
 #get black bar
-black_bar = img[limits[0]:limits[1], 0:720]
+black_bar = img[limits[0]:limits[1], 0:width]
 bw_black_bar = cv2.cvtColor(black_bar, cv2.COLOR_BGR2GRAY)
 
 #remove text
@@ -88,7 +92,7 @@ mask = thresh_and_smoothen(cont_black_bar)
 final_bar = inpaint_text(black_bar, mask)
 
 #put back in image
-img[limits[0]:limits[1], 0:720] = final_bar
+img[limits[0]:limits[1], 0:width] = final_bar
 
 #remove the black bars
 img = remove_black_bars(img, limits)
