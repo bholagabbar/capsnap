@@ -1,50 +1,99 @@
 import cv2
+import argparse
 import numpy as np
-from numpy import array, arange, uint8 
+from numpy import array
 from matplotlib import pyplot as plt
 
-
-images = []
-
+#increase contrast to get the text
 def increase_contrast(image_todo):
 	array_alpha = np.array([1.99])
 	array_beta = np.array([-100.0])
 	cv2.add(image_todo, array_beta, image_todo)
 	cv2.add(image_todo, array_alpha, image_todo)
-	# images.append(image_todo)
 	return image_todo
 
+#threshen to extract text from binarization and apply gaussian blur for antialiaing-ish effect
 def thresh_and_smoothen(image_todo):
 	ret,mask = cv2.threshold(image_todo, 2, 256, cv2.THRESH_BINARY)
-	# images.append(mask)
-	mask = cv2.GaussianBlur(mask, (3, 3), 50)
-	# images.append(mask)
+	mask = cv2.GaussianBlur(mask, (5, 5), 0)
 	return mask
 
-def inpaint_original(image_todo, mask):
+#inpaint over text
+def inpaint_text(image_todo, mask):
 	final = cv2.inpaint(image_todo, mask, 0, cv2.INPAINT_TELEA)
-	images.append(final)
 	return final
 
+# find black bars by finding perfectly horizontal edges using HoughLines
+def find_black_bar_and_draw_lines_on_black_image(img, gray, ip_try):
+	edges = cv2.Canny(gray,50,150,apertureSize = 3) #find edges
+	limits = [] #limits of upper and lower black bar
+	lines = cv2.HoughLines(edges,1,np.pi/180,350)
+	for rho,theta in lines[0]:
+	    a = np.cos(theta)
+	    b = np.sin(theta)
+	    if int(b) == 1:
+			x0 = a*rho
+			y0 = b*rho
+			# drawing white lines over mask to inpaint over later
+			x1 = int(x0 + 1000*(-b))
+			y1 = int(y0 + 1000*(a))
+			x2 = int(x0 - 1000*(-b))
+			y2 = int(y0 - 1000*(a))
+			cv2.line(ip_try,(x1,y1),(x2,y2),(256,256,256),2)
+			limits.append(int(y0))
+	limits.sort()
+	return limits
 
-img = cv2.imread('lena_only_caption.png', cv2.IMREAD_COLOR)
-img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+#recolor black parts
+def remove_black_bars(img, limits):
+	for i in xrange (limits[0], limits[1]):
+		for j in xrange(720):
+			img[i][j][0] = (img[i][j][0] * 2.52)
+			img[i][j][1] = (img[i][j][1] * 2.52)
+			img[i][j][2] = (img[i][j][2] * 2.42)
+	return img
+
+#inpaint again over the hard edges of the black bars
+def inpaint_again(img, mask):
+	final = cv2.inpaint(img, mask, 0, cv2.INPAINT_TELEA)
+	return final
+
+# read images
+
+ap = argparse.ArgumentParser()
+ap.add_argument("-i", "--img", required = True, help = "Path to the image")
+args = vars(ap.parse_args())
+img = cv2.imread(args["img"])
+
+# resize
+img = cv2.resize(img, (720, 1184), interpolation = cv2.INTER_CUBIC)
+
+# get full black image
+ret, ip_try = cv2.threshold(img.copy(), 255, 256, cv2.THRESH_BINARY)
+ip_try= cv2.cvtColor(ip_try, cv2.COLOR_BGR2GRAY) #black image
+
+# convert to B/W
 bw_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-images.append(img)
-# images.append(bw_img)
+#find black bar limits and draw lines on black image
+limits = find_black_bar_and_draw_lines_on_black_image(img, bw_img, ip_try)
 
-cont_img = increase_contrast(bw_img.copy())
-mask = thresh_and_smoothen(cont_img.copy())
-final = inpaint_original(img.copy(), mask)
+#get black bar
+black_bar = img[limits[0]:limits[1], 0:720]
+bw_black_bar = cv2.cvtColor(black_bar, cv2.COLOR_BGR2GRAY)
 
+#remove text
+cont_black_bar = increase_contrast(bw_black_bar)
+mask = thresh_and_smoothen(cont_black_bar)
+final_bar = inpaint_text(black_bar, mask)
 
-# titles = ['Original Image', 'Thresh and Blurred', 'INPAINTED']
-titles = ['Original Image', 'INPAINTED']
- 
-for i in xrange(len(images)):
-    plt.subplot(2, 1,i+1),plt.imshow(images[i],'gray')
-    # plt.title(titles[i])
-    plt.xticks([]),plt.yticks([])
+#put back in image
+img[limits[0]:limits[1], 0:720] = final_bar
 
-plt.show()
+#remove the black bars
+img = remove_black_bars(img, limits)
+
+#refine edges of black bar
+img = inpaint_again(img, ip_try)
+
+cv2.imwrite('corrected.png', img)
