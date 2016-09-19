@@ -1,4 +1,4 @@
-# capsnap
+# CapSnap
 CapSnap is a tool to remove captions off Snapchat images and restore the original image.
 
 
