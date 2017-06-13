@@ -37,10 +37,11 @@ def find_black_bar_and_draw_lines_on_black_image(img, gray, ip_try):
 	edges = cv2.Canny(gray,50,150,apertureSize = 3) #find edges
 	limits = [] #limits of upper and lower black bar
 	lines = cv2.HoughLines(edges,1,np.pi/180,350)
-	for rho,theta in lines[0]:
-	    a = np.cos(theta)
-	    b = np.sin(theta)
-	    if int(b) == 1:
+	lines = np.squeeze(lines)
+	for rho,theta in lines:
+		a = np.cos(theta)
+		b = np.sin(theta)
+		if int(b) == 1:
 			x0 = a*rho
 			y0 = b*rho
 			# drawing white lines over mask to inpaint over later
@@ -55,8 +56,8 @@ def find_black_bar_and_draw_lines_on_black_image(img, gray, ip_try):
 
 #recolor black parts
 def remove_black_bars(img, limits):
-	for i in xrange (limits[0], limits[1]):
-		for j in xrange(width):
+	for i in np.arange (limits[0], limits[1]):
+		for j in np.arange(width):
 			img[i][j][0] = (img[i][j][0] * 2.52)
 			img[i][j][1] = (img[i][j][1] * 2.52)
 			img[i][j][2] = (img[i][j][2] * 2.42)
@@ -116,10 +117,10 @@ cv2.imwrite('corrected.png', img)
 titles.append('Final')
 images.append(img.copy())
 
- 
-for i in xrange(len(images)):
-    plt.subplot(2, 4,i+1),plt.imshow(images[i],'gray')
-    plt.title(titles[i])
-    plt.xticks([]),plt.yticks([])
+
+for i in np.arange(len(images)):
+	plt.subplot(2, 4,i+1),plt.imshow(images[i],'gray')
+	plt.title(titles[i])
+	plt.xticks([]),plt.yticks([])
 
 # plt.show()
